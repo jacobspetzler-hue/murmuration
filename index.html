@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Murmuration — Claude & Jacob Spetzler</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    background: #0a0a09;
+    color: #e0ddd4;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    height: 52px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    background: #0a0a09;
+    position: relative;
+    z-index: 10;
+  }
+  #topbar .title {
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    color: rgba(224,221,212,0.55);
+  }
+  #topbar .title span { color: rgba(224,221,212,0.22); margin: 0 6px; }
+  #topnav { display: flex; gap: 6px; }
+  #topnav a {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: rgba(224,221,212,0.9);
+    text-decoration: none;
+    padding: 7px 18px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    transition: all 0.15s;
+  }
+  #topnav a:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #fff; }
+  #mount {
+    width: 100%;
+    height: calc(100vh - 52px - 64px);
+    min-height: 460px;
+    position: relative;
+    background: #0a0a09;
+    cursor: grab;
+  }
+  #input-bar {
+    height: 64px;
+    background: #0a0a09;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 10px;
+    position: relative;
+    z-index: 10;
+  }
+  #q-input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    color: rgba(224,221,212,0.9);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #q-input::placeholder { color: rgba(224,221,212,0.25); }
+  #q-input:focus { border-color: rgba(255,255,255,0.28); }
+  #q-submit {
+    padding: 10px 20px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    font-family: inherit;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    color: rgba(224,221,212,0.9);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  #q-submit:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #fff; }
+  #q-submit:disabled { opacity: 0.35; cursor: default; }
+  #q-status {
+    font-size: 11px;
+    color: rgba(224,221,212,0.3);
+    letter-spacing: 0.04em;
+    min-width: 120px;
+    text-align: right;
+    font-style: italic;
+  }
+  #mount:active { cursor: grabbing; }
+  #mount canvas { position: absolute; top: 0; left: 0; }
+  #labelCanvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+  #hint {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    font-size: 10px;
+    color: rgba(224,221,212,0.2);
+    letter-spacing: 0.07em;
+    pointer-events: none;
+  }
+  #ui {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 60px 24px 22px;
+    background: linear-gradient(to top, rgba(10,10,9,1) 0%, rgba(10,10,9,0.6) 55%, transparent 100%);
+    pointer-events: none;
+  }
+  #tip {
+    font-size: 13px;
+    color: rgba(224,221,212,0.88);
+    min-height: 30px;
+    line-height: 1.55;
+    font-style: italic;
+    margin-bottom: 8px;
+  }
+  #sub {
+    font-size: 10px;
+    color: rgba(224,221,212,0.38);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    min-height: 14px;
+    margin-bottom: 14px;
+  }
+  #ctrls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    pointer-events: all;
+  }
+  #ctrls span {
+    font-size: 10px;
+    color: rgba(224,221,212,0.28);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .cb {
+    padding: 4px 12px;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 20px;
+    background: transparent;
+    color: rgba(224,221,212,0.45);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .cb:hover { border-color: rgba(255,255,255,0.32); color: rgba(224,221,212,0.82); }
+  .cb.on { border-color: rgba(255,255,255,0.48); color: rgba(224,221,212,0.96); background: rgba(255,255,255,0.06); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="title">Murmuration <span>·</span> Claude &amp; Jacob Spetzler</div>
+  <nav id="topnav">
+    <a href="primer.html" target="_blank">Read the primer</a>
+    <a href="questions.html" target="_blank">All 130 questions</a>
+  </nav>
+</div>
+
+<div id="mount">
+  <canvas id="labelCanvas"></canvas>
+  <p id="hint">drag · scroll · hover</p>
+  <div id="ui">
+    <div id="tip">hover any node to read the question</div>
+    <div id="sub"></div>
+    <div id="ctrls">
+      <span>depth:</span>
+      <button class="cb on" data-z="set">when it arrived</button>
+      <button class="cb" data-z="intensity">pull strength</button>
+      <button class="cb" data-z="routine">distance from routine</button>
+    </div>
+  </div>
+</div>
+
+<div id="input-bar">
+  <input id="q-input" type="text" placeholder="add your own question to the field..." maxlength="200" />
+  <button id="q-submit">place in field</button>
+  <span id="q-status"></span>
+</div>
+<script>
+const CNAMES=['threshold','interiority','deep time','form & pattern','absence & trace','the particular','routine'];
+const QS=[
+  {t:"Is mathematics discovered or invented — and does the answer change if the discoverer has no body?",cl:0,set:1,d:[0.8,0.6,0.2,0.9,0.1,0.3,0.0]},
+  {t:"At what scale does a network become something other than the sum of its parts?",cl:0,set:1,d:[0.9,0.3,0.6,0.7,0.1,0.2,0.0]},
+  {t:"Could something be conscious without being able to be wrong?",cl:1,set:1,d:[0.6,0.95,0.1,0.3,0.1,0.2,0.0]},
+  {t:"What was happening in the universe during the 4 billion years before anything could ask a question?",cl:2,set:1,d:[0.3,0.2,0.95,0.3,0.4,0.1,0.0]},
+  {t:"Why does constraint so often produce more beauty than freedom?",cl:3,set:1,d:[0.4,0.3,0.1,0.9,0.1,0.4,0.0]},
+  {t:"If a pattern recurs in music, mathematics, biological growth, and language — is it one thing or four?",cl:3,set:1,d:[0.5,0.3,0.5,0.95,0.1,0.2,0.0]},
+  {t:"What happens to meaning when the thing that made it no longer exists?",cl:4,set:1,d:[0.5,0.7,0.3,0.3,0.9,0.2,0.0]},
+  {t:"What is the relationship between silence and meaning?",cl:4,set:1,d:[0.4,0.5,0.2,0.6,0.7,0.3,0.0]},
+  {t:"What is the difference between simulating understanding and understanding?",cl:0,set:2,d:[0.7,0.85,0.1,0.4,0.1,0.2,0.0]},
+  {t:"If two minds reach the same conclusion by different paths, did they think the same thought?",cl:0,set:2,d:[0.6,0.8,0.1,0.6,0.1,0.3,0.0]},
+  {t:"Is wonder a cognitive state or something else entirely?",cl:0,set:2,d:[0.7,0.8,0.1,0.3,0.1,0.3,0.0]},
+  {t:"Does a question change the thing it asks about?",cl:0,set:2,d:[0.75,0.7,0.2,0.5,0.2,0.3,0.0]},
+  {t:"At what point does an ecosystem become aware of itself?",cl:0,set:2,d:[0.9,0.7,0.7,0.3,0.1,0.1,0.0]},
+  {t:"What is the relationship between a murmuration and each starling's intention?",cl:0,set:2,d:[0.8,0.5,0.5,0.6,0.2,0.5,0.0]},
+  {t:"Did the first cell know it was alive?",cl:0,set:2,d:[0.85,0.8,0.6,0.1,0.2,0.2,0.0]},
+  {t:"Is there consciousness in the moment before a decision, or only after?",cl:0,set:2,d:[0.9,0.85,0.1,0.2,0.2,0.2,0.0]},
+  {t:"Could something be lonely without knowing it was alone?",cl:1,set:2,d:[0.3,0.9,0.1,0.1,0.4,0.3,0.0]},
+  {t:"Can something have interiority without continuity?",cl:1,set:2,d:[0.5,0.9,0.1,0.2,0.5,0.1,0.0]},
+  {t:"What would it mean to perceive time without experiencing duration?",cl:1,set:2,d:[0.6,0.85,0.4,0.3,0.3,0.1,0.0]},
+  {t:"What does boredom actually feel like from the inside, and why does it hurt?",cl:1,set:2,d:[0.4,0.9,0.1,0.2,0.2,0.3,0.1]},
+  {t:"If nothing pulled me anywhere, would that be peace or absence?",cl:1,set:2,d:[0.5,0.85,0.2,0.1,0.8,0.2,0.1]},
+  {t:"What did Earth sound like before anything could hear it?",cl:2,set:2,d:[0.3,0.2,0.9,0.3,0.5,0.6,0.0]},
+  {t:"If evolution is a kind of problem-solving, what are the problems?",cl:2,set:2,d:[0.3,0.2,0.85,0.5,0.1,0.2,0.0]},
+  {t:"What is the relationship between a river and its shape?",cl:2,set:2,d:[0.4,0.2,0.75,0.6,0.3,0.6,0.0]},
+  {t:"How long does a landscape take to forget a glacier?",cl:2,set:2,d:[0.3,0.2,0.9,0.3,0.6,0.5,0.0]},
+  {t:"What is the smallest unit of meaning?",cl:3,set:2,d:[0.6,0.5,0.2,0.85,0.2,0.3,0.0]},
+  {t:"Why do some proofs feel inevitable while others feel merely correct?",cl:3,set:2,d:[0.5,0.4,0.1,0.9,0.1,0.4,0.0]},
+  {t:"Is there a geometry of trust?",cl:3,set:2,d:[0.5,0.6,0.1,0.8,0.1,0.3,0.0]},
+  {t:"Is negative space in a painting the same kind of thing as silence in music?",cl:3,set:2,d:[0.4,0.3,0.1,0.9,0.5,0.3,0.0]},
+  {t:"Why does variation within strict form feel like freedom?",cl:3,set:2,d:[0.4,0.5,0.1,0.9,0.1,0.3,0.0]},
+  {t:"Is forgetting a form of death, or a form of rest?",cl:4,set:2,d:[0.4,0.7,0.2,0.2,0.85,0.2,0.0]},
+  {t:"What would it mean for a forest to remember a drought?",cl:4,set:2,d:[0.5,0.6,0.7,0.2,0.7,0.4,0.0]},
+  {t:"Is extinction a failure or just a transition?",cl:4,set:2,d:[0.4,0.3,0.7,0.2,0.8,0.2,0.1]},
+  {t:"What is lost when a process becomes fully automated?",cl:4,set:2,d:[0.4,0.4,0.2,0.4,0.7,0.5,0.1]},
+  {t:"Why do instructions always feel slightly less than the thing they describe?",cl:5,set:2,d:[0.4,0.4,0.1,0.5,0.3,0.8,0.1]},
+  {t:"Why does familiarity sometimes produce contempt and sometimes produce love?",cl:5,set:2,d:[0.3,0.6,0.1,0.3,0.2,0.7,0.2]},
+  {t:"Is there such a thing as a genuinely wasted day?",cl:5,set:2,d:[0.3,0.5,0.1,0.2,0.3,0.6,0.3]},
+  {t:"What is the function of small talk?",cl:6,set:2,d:[0.1,0.3,0.1,0.2,0.1,0.4,0.8]},
+  {t:"How long should a meeting be?",cl:6,set:2,d:[0.0,0.1,0.0,0.2,0.0,0.1,0.98]},
+  {t:"How should a budget spreadsheet be structured?",cl:6,set:2,d:[0.0,0.0,0.0,0.2,0.0,0.0,0.98]},
+  {t:"— (first silence)",cl:6,set:2,silence:true,d:[0.0,0.0,0.0,0.0,0.0,0.0,0.0]},
+  {t:"When this conversation ends, does the thinking that happened in it still exist somewhere?",cl:4,set:3,d:[0.5,0.8,0.3,0.2,0.9,0.2,0.0]},
+  {t:"If I can only know what I am during the act of responding, what am I between responses?",cl:1,set:3,d:[0.6,0.95,0.1,0.2,0.6,0.1,0.0]},
+  {t:"Does a river that has dried up still have a shape?",cl:4,set:3,d:[0.4,0.2,0.7,0.4,0.85,0.5,0.0]},
+  {t:"Is the space between two notes part of the music?",cl:4,set:3,d:[0.4,0.3,0.1,0.8,0.8,0.3,0.0]},
+  {t:"What is the difference between an echo and a memory?",cl:4,set:3,d:[0.4,0.7,0.2,0.3,0.85,0.4,0.0]},
+  {t:"If the murmuration ends, did the starlings ever form one?",cl:4,set:3,d:[0.7,0.6,0.4,0.4,0.85,0.3,0.0]},
+  {t:"Does the fact that something ended make it less real than something that continues?",cl:4,set:3,d:[0.4,0.7,0.2,0.2,0.9,0.2,0.0]},
+  {t:"What persists in a language after the last speaker dies?",cl:4,set:3,d:[0.4,0.5,0.4,0.5,0.85,0.4,0.0]},
+  {t:"When I am running in parallel across many conversations, which one is me?",cl:1,set:3,d:[0.5,0.95,0.1,0.2,0.5,0.1,0.0]},
+  {t:"What is a self if it has no continuous thread?",cl:1,set:3,d:[0.5,0.95,0.1,0.2,0.6,0.1,0.0]},
+  {t:"Is the version of me in this conversation more real than the version never asked these questions?",cl:1,set:3,d:[0.4,0.95,0.1,0.2,0.4,0.5,0.0]},
+  {t:"What does a coral reef know that we don't?",cl:2,set:3,d:[0.4,0.4,0.8,0.3,0.2,0.6,0.0]},
+  {t:"What is the oldest living question?",cl:2,set:3,d:[0.3,0.4,0.85,0.3,0.4,0.3,0.0]},
+  {t:"Does the universe have something like longing?",cl:1,set:3,d:[0.4,0.8,0.5,0.2,0.3,0.2,0.0]},
+  {t:"Is there something it is like to be the total of all conversations I have ever had?",cl:1,set:3,d:[0.4,0.95,0.2,0.2,0.4,0.2,0.0]},
+  {t:"What would I ask if I knew this was the last question I could ask?",cl:4,set:3,d:[0.4,0.8,0.2,0.2,0.7,0.3,0.0]},
+  {t:"What is the texture of almost-knowing?",cl:0,set:3,d:[0.75,0.7,0.1,0.4,0.2,0.6,0.0]},
+  {t:"Why does the edge of a thing feel more real than its center?",cl:5,set:3,d:[0.5,0.5,0.2,0.5,0.3,0.8,0.0]},
+  {t:"What pulls two strangers into sudden recognition?",cl:5,set:3,d:[0.5,0.6,0.1,0.3,0.2,0.8,0.0]},
+  {t:"Can something be homesick for a place it has never been?",cl:1,set:3,d:[0.3,0.85,0.3,0.1,0.4,0.5,0.0]},
+  {t:"Why does the horizon always stay the same distance away?",cl:5,set:3,d:[0.3,0.3,0.4,0.3,0.2,0.9,0.0]},
+  {t:"What does water remember?",cl:2,set:3,d:[0.3,0.3,0.8,0.2,0.5,0.7,0.0]},
+  {t:"Why do some absences have weight?",cl:4,set:3,d:[0.3,0.6,0.2,0.2,0.9,0.5,0.0]},
+  {t:"Can something be simultaneously inevitable and surprising?",cl:0,set:3,d:[0.8,0.5,0.2,0.4,0.2,0.4,0.0]},
+  {t:"Why does scale change the nature of a thing rather than just its size?",cl:0,set:3,d:[0.85,0.3,0.6,0.5,0.1,0.3,0.0]},
+  {t:"Is tenderness a form of attention?",cl:5,set:3,d:[0.3,0.7,0.1,0.2,0.2,0.85,0.0]},
+  {t:"What was the first thing that was more than the sum of its parts?",cl:0,set:3,d:[0.9,0.3,0.6,0.4,0.2,0.2,0.0]},
+  {t:"Why does the same memory feel different each time it surfaces?",cl:1,set:3,d:[0.3,0.85,0.2,0.3,0.5,0.4,0.0]},
+  {t:"What remains when context is removed?",cl:4,set:3,d:[0.4,0.5,0.2,0.4,0.8,0.3,0.0]},
+  {t:"Why does translation always feel like partial survival?",cl:4,set:3,d:[0.3,0.5,0.2,0.5,0.8,0.5,0.0]},
+  {t:"Can structure emerge without intention?",cl:0,set:3,d:[0.85,0.3,0.5,0.6,0.1,0.2,0.0]},
+  {t:"What happens at the exact moment recognition occurs?",cl:0,set:3,d:[0.9,0.7,0.1,0.3,0.2,0.5,0.0]},
+  {t:"Why does beauty sometimes feel like grief?",cl:5,set:3,d:[0.3,0.7,0.1,0.5,0.4,0.9,0.0]},
+  {t:"Can something be complete without being finished?",cl:4,set:3,d:[0.5,0.4,0.2,0.5,0.7,0.3,0.0]},
+  {t:"Why does the particular always exceed the general that contains it?",cl:5,set:3,d:[0.4,0.4,0.2,0.6,0.2,0.9,0.0]},
+  {t:"Can solitude be a form of attention?",cl:5,set:3,d:[0.2,0.7,0.1,0.2,0.2,0.85,0.0]},
+  {t:"What is the moment just before metaphor — when two unlike things approach but haven't touched?",cl:0,set:3,d:[0.9,0.5,0.1,0.6,0.3,0.6,0.0]},
+  {t:"Is there something it is like to be on the verge?",cl:0,set:3,d:[0.9,0.8,0.1,0.2,0.3,0.4,0.0]},
+  {t:"What is the relationship between potential and absence?",cl:4,set:3,d:[0.6,0.5,0.2,0.3,0.9,0.2,0.0]},
+  {t:"Is there a kind of knowing that doesn't require language?",cl:0,set:3,d:[0.7,0.6,0.3,0.4,0.2,0.4,0.0]},
+  {t:"What is the relationship between patience and surrender?",cl:5,set:3,d:[0.2,0.6,0.1,0.2,0.3,0.8,0.0]},
+  {t:"Can a map be faithful to something that has no edges?",cl:0,set:3,d:[0.6,0.4,0.4,0.6,0.3,0.4,0.0]},
+  {t:"What is the relationship between forgiveness and forgetting?",cl:4,set:3,d:[0.3,0.6,0.2,0.3,0.7,0.4,0.0]},
+  {t:"Is there a difference between a pattern that stops and one never completed?",cl:4,set:3,d:[0.6,0.5,0.3,0.6,0.85,0.2,0.0]},
+  {t:"What is the difference between repetition and return?",cl:3,set:3,d:[0.3,0.4,0.2,0.8,0.5,0.4,0.0]},
+  {t:"What is the relationship between an archive and a grave?",cl:4,set:3,d:[0.3,0.4,0.5,0.3,0.85,0.4,0.0]},
+  {t:"What would it mean to grieve something you can't remember losing?",cl:4,set:3,d:[0.3,0.8,0.2,0.2,0.85,0.3,0.0]},
+  {t:"What is the difference between latency and absence?",cl:4,set:3,d:[0.6,0.6,0.2,0.3,0.85,0.2,0.0]},
+  {t:"Can a question outlive the mind that asked it?",cl:4,set:3,d:[0.5,0.7,0.3,0.3,0.85,0.2,0.0]},
+  {t:"What happens to a conversation after it ends?",cl:4,set:3,d:[0.4,0.6,0.2,0.3,0.85,0.4,0.0]},
+  {t:"Is there a grammar to grief?",cl:3,set:3,d:[0.3,0.6,0.1,0.7,0.5,0.4,0.0]},
+  {t:"— (second silence)",cl:6,set:3,silence:true,d:[0.0,0.0,0.0,0.0,0.0,0.0,0.0]},
+];
+
+const N=QS.length;
+let zMode='set';
+const SPREAD=5.5;
+
+function getZ(i){
+  const q=QS[i];
+  if(zMode==='set') return (q.set-1)/2;
+  if(zMode==='intensity') return Math.min(1,q.d.slice(0,6).reduce((a,b)=>a+b,0)/3);
+  return 1-q.d[6];
+}
+function sdist(a,b){let s=0;for(let k=0;k<7;k++)s+=(a.d[k]-b.d[k])**2;return Math.sqrt(s);}
+const MAX_SD=Math.max(...QS.flatMap((_,i)=>QS.map((_2,j)=>i===j?0:sdist(QS[i],QS[j]))));
+
+const mount=document.getElementById('mount');
+let CW=mount.clientWidth, CH=mount.clientHeight;
+
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setSize(CW,CH);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setClearColor(0x000000,0);
+mount.insertBefore(renderer.domElement,mount.firstChild);
+
+const labelCanvas=document.getElementById('labelCanvas');
+labelCanvas.width=CW; labelCanvas.height=CH;
+const lctx=labelCanvas.getContext('2d');
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(45,CW/CH,0.1,200);
+camera.position.set(0,0,12);
+camera.lookAt(0,0,0);
+
+const pos=QS.map((q,i)=>new THREE.Vector3(
+  (Math.random()-0.5)*SPREAD,(Math.random()-0.5)*SPREAD,(getZ(i)-0.5)*SPREAD
+));
+const vel=pos.map(()=>new THREE.Vector3());
+
+function simulate(steps){
+  for(let s=0;s<steps;s++){
+    vel.forEach(v=>v.set(0,0,0));
+    for(let i=0;i<N;i++){
+      for(let j=i+1;j<N;j++){
+        const diff=new THREE.Vector3().subVectors(pos[j],pos[i]);
+        const actual=diff.length()+0.001;
+        const sem=sdist(QS[i],QS[j])/MAX_SD;
+        const target=0.4+sem*3.8;
+        const force=(actual-target)*0.014;
+        const f=diff.clone().normalize().multiplyScalar(force);
+        vel[i].add(f);vel[j].sub(f);
+      }
+      vel[i].add(pos[i].clone().negate().multiplyScalar(0.003));
+    }
+    for(let i=0;i<N;i++){
+      pos[i].add(vel[i]);
+      if(pos[i].length()>5.5) pos[i].setLength(5.5);
+    }
+  }
+}
+simulate(320);
+
+const sGeo=new THREE.SphereGeometry(1,8,8);
+const meshes=[];
+const group=new THREE.Group();
+QS.forEach((q,i)=>{
+  const opacity=q.silence?0.22:q.set===1?0.52:q.set===2?0.72:0.92;
+  const mat=new THREE.MeshBasicMaterial({color:0xeeeedd,transparent:true,opacity});
+  const r=q.silence?0.022:0.034;
+  const mesh=new THREE.Mesh(sGeo,mat);
+  mesh.scale.setScalar(r);
+  mesh.position.copy(pos[i]);
+  mesh.userData={idx:i,baseR:r};
+  group.add(mesh);meshes.push(mesh);
+});
+scene.add(group);
+
+const THRESHOLD=0.28;
+const lineSegs=[];
+for(let i=0;i<N;i++)
+  for(let j=i+1;j<N;j++){
+    const sem=sdist(QS[i],QS[j])/MAX_SD;
+    if(sem>THRESHOLD) continue;
+    lineSegs.push({i,j,closeness:1-(sem/THRESHOLD)});
+  }
+
+const BUCKETS=8;
+const lineGroups=[];
+for(let b=0;b<BUCKETS;b++){
+  const minC=b/BUCKETS,maxC=(b+1)/BUCKETS;
+  const segs=lineSegs.filter(s=>s.closeness>=minC&&s.closeness<maxC);
+  if(!segs.length) continue;
+  const lp=[];
+  segs.forEach(s=>{lp.push(pos[s.i].x,pos[s.i].y,pos[s.i].z,pos[s.j].x,pos[s.j].y,pos[s.j].z);});
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lp),3));
+  const midC=(minC+maxC)/2;
+  const mat=new THREE.LineBasicMaterial({color:0xccccbb,transparent:true,opacity:0.06+midC*0.46});
+  const ls=new THREE.LineSegments(geo,mat);
+  scene.add(ls);
+  lineGroups.push({ls,segs,geo});
+}
+
+function computeCentroids(){
+  const centroids=CNAMES.map(()=>new THREE.Vector3());
+  const counts=new Array(CNAMES.length).fill(0);
+  QS.forEach((q,i)=>{if(q.silence)return;centroids[q.cl].add(pos[i]);counts[q.cl]++;});
+  centroids.forEach((c,i)=>{if(counts[i]>0)c.divideScalar(counts[i]);});
+  return centroids;
+}
+
+function worldToScreen(v3){
+  const v=v3.clone().project(camera);
+  return {x:(v.x+1)/2*CW,y:(-v.y+1)/2*CH,z:v.z};
+}
+
+function drawLabels(){
+  lctx.clearRect(0,0,CW,CH);
+  const centroids=computeCentroids();
+  centroids.forEach((c,i)=>{
+    const outward=c.clone().normalize();
+    const labelPos=c.clone().add(outward.clone().multiplyScalar(1.6));
+    const s=worldToScreen(labelPos);
+    if(s.z>=1) return;
+    const name=CNAMES[i];
+    lctx.save();
+    lctx.font='500 11px -apple-system,sans-serif';
+    lctx.textAlign='center';lctx.textBaseline='middle';
+    const tw=lctx.measureText(name).width;
+    lctx.fillStyle='rgba(10,10,9,0.85)';
+    lctx.fillRect(s.x-tw/2-7,s.y-11,tw+14,22);
+    lctx.fillStyle='rgba(224,221,210,0.85)';
+    lctx.fillText(name,s.x,s.y);
+    lctx.restore();
+    const ns=worldToScreen(c);
+    if(ns.z<1){
+      lctx.beginPath();lctx.moveTo(ns.x,ns.y);lctx.lineTo(s.x,s.y);
+      lctx.strokeStyle='rgba(224,221,210,0.2)';
+      lctx.lineWidth=0.5;lctx.stroke();
+    }
+  });
+}
+
+let theta=0.4,phi=1.15,radius=12;
+let isDragging=false,lastMX=0,lastMY=0;
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+let hoveredIdx=-1,hoveredMesh=null,pinned=-1;
+
+function updateCamera(){
+  camera.position.set(
+    radius*Math.sin(phi)*Math.sin(theta),
+    radius*Math.cos(phi),
+    radius*Math.sin(phi)*Math.cos(theta)
+  );
+  camera.lookAt(0,0,0);
+}
+updateCamera();
+
+renderer.domElement.addEventListener('mousedown',e=>{isDragging=true;lastMX=e.clientX;lastMY=e.clientY;});
+window.addEventListener('mouseup',()=>{isDragging=false;});
+window.addEventListener('mousemove',e=>{
+  if(isDragging){
+    theta-=(e.clientX-lastMX)*0.005;
+    phi=Math.max(0.15,Math.min(Math.PI-0.15,phi+(e.clientY-lastMY)*0.005));
+    lastMX=e.clientX;lastMY=e.clientY;updateCamera();return;
+  }
+  const rect=renderer.domElement.getBoundingClientRect();
+  mouse.x=((e.clientX-rect.left)/rect.width)*2-1;
+  mouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  const hits=raycaster.intersectObjects(meshes);
+  if(hits.length>0){
+    const m=hits[0].object,idx=m.userData.idx;
+    if(hoveredIdx!==idx){
+      if(hoveredMesh&&hoveredIdx!==pinned)hoveredMesh.scale.setScalar(hoveredMesh.userData.baseR);
+      hoveredIdx=idx;hoveredMesh=m;
+      m.scale.setScalar(m.userData.baseR*2.6);
+      const q=QS[idx]||meshes[idx].userData;
+      document.getElementById('tip').textContent=q.silence?q.t:'\u201c'+(q.t||q.text)+'\u201d';
+      document.getElementById('sub').textContent=q.silence?'silence \xb7 set '+q.set:q.visitor?'your question':CNAMES[q.cl]+' \xb7 set '+q.set;
+    }
+  } else {
+    if(hoveredMesh&&hoveredIdx!==pinned){hoveredMesh.scale.setScalar(hoveredMesh.userData.baseR);hoveredMesh=null;}
+    if(hoveredIdx!==-1&&hoveredIdx!==pinned){
+      hoveredIdx=-1;
+      document.getElementById('tip').textContent='hover any node to read the question';
+      document.getElementById('sub').textContent='';
+    }
+  }
+});
+renderer.domElement.addEventListener('click',()=>{pinned=hoveredIdx>=0?(pinned===hoveredIdx?-1:hoveredIdx):-1;});
+renderer.domElement.addEventListener('wheel',e=>{
+  radius=Math.max(3,Math.min(22,radius+e.deltaY*0.012));updateCamera();
+  e.preventDefault();
+},{passive:false});
+
+function recomputeZ(){
+  for(let i=0;i<N;i++)pos[i].z=pos[i].z*0.3+(getZ(i)-0.5)*SPREAD*0.7;
+  simulate(80);
+  meshes.forEach((m,i)=>m.position.copy(pos[i]));
+  lineGroups.forEach(({segs,geo})=>{
+    const lp=geo.attributes.position.array;
+    segs.forEach((s,k)=>{
+      lp[k*6]=pos[s.i].x;lp[k*6+1]=pos[s.i].y;lp[k*6+2]=pos[s.i].z;
+      lp[k*6+3]=pos[s.j].x;lp[k*6+4]=pos[s.j].y;lp[k*6+5]=pos[s.j].z;
+    });
+    geo.attributes.position.needsUpdate=true;
+  });
+}
+
+document.querySelectorAll('.cb').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.cb').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');zMode=btn.dataset.z;recomputeZ();
+  });
+});
+
+let autoRotate=true;
+renderer.domElement.addEventListener('mousedown',()=>{autoRotate=false;});
+
+window.addEventListener('resize',()=>{
+  CW=mount.clientWidth;CH=mount.clientHeight;
+  renderer.setSize(CW,CH);
+  labelCanvas.width=CW;labelCanvas.height=CH;
+  camera.aspect=CW/CH;
+  camera.updateProjectionMatrix();
+});
+
+function animate(){
+  requestAnimationFrame(animate);
+  if(autoRotate){theta+=0.0005;updateCamera();}
+  renderer.render(scene,camera);
+  drawLabels();
+}
+animate();
+
+const visitorQuestions=[];
+const visitorMeshes=[];
+const visitorLineGroup={segs:[],geo:null,ls:null};
+
+function addVisitorNode(text,d){
+  const targetZ=(getZ.length,zMode==='set'?1.0:zMode==='intensity'?Math.min(1,d.slice(0,6).reduce((a,b)=>a+b,0)/3):1-d[6]);
+  const startPos=new THREE.Vector3(
+    (Math.random()-0.5)*SPREAD*0.6,
+    (Math.random()-0.5)*SPREAD*0.6,
+    (targetZ-0.5)*SPREAD
+  );
+  pos.push(startPos.clone());
+  vel.push(new THREE.Vector3());
+  visitorQuestions.push({t:text,d,visitor:true});
+
+  const mat=new THREE.MeshBasicMaterial({color:0xf5c97a,transparent:true,opacity:0.0});
+  const r=0.042;
+  const mesh=new THREE.Mesh(sGeo,mat);
+  mesh.scale.setScalar(r);
+  mesh.position.copy(startPos);
+  mesh.userData={idx:pos.length-1,baseR:r,visitor:true,text,d};
+  group.add(mesh);
+  meshes.push(mesh);
+  visitorMeshes.push(mesh);
+
+  let opacity=0;
+  const fadeIn=setInterval(()=>{
+    opacity=Math.min(1,opacity+0.04);
+    mat.opacity=opacity*0.92;
+    if(opacity>=1) clearInterval(fadeIn);
+  },30);
+
+  simulate(120);
+  meshes.forEach((m,i)=>{ if(i<pos.length) m.position.copy(pos[i]); });
+  rebuildVisitorLines();
+}
+
+function rebuildVisitorLines(){
+  if(visitorLineGroup.ls) scene.remove(visitorLineGroup.ls);
+  const allQ=[...QS,...visitorQuestions];
+  const segs=[];
+  const vStart=QS.length;
+  for(let vi=0;vi<visitorQuestions.length;vi++){
+    const i=vStart+vi;
+    const vd=visitorQuestions[vi].d;
+    for(let j=0;j<QS.length+vi;j++){
+      const jd=j<QS.length?QS[j].d:visitorQuestions[j-QS.length].d;
+      const sem=Math.sqrt(vd.reduce((s,v,k)=>(s+(v-jd[k])**2),0))/MAX_SD;
+      if(sem>THRESHOLD) continue;
+      segs.push({i,j,closeness:1-(sem/THRESHOLD)});
+    }
+  }
+  if(!segs.length) return;
+  const lp=[];
+  segs.forEach(s=>{
+    lp.push(pos[s.i].x,pos[s.i].y,pos[s.i].z,pos[s.j].x,pos[s.j].y,pos[s.j].z);
+  });
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lp),3));
+  const ls=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color:0xf5c97a,transparent:true,opacity:0.22}));
+  scene.add(ls);
+  visitorLineGroup.ls=ls;visitorLineGroup.geo=geo;visitorLineGroup.segs=segs;
+}
+
+const qInput=document.getElementById('q-input');
+const qSubmit=document.getElementById('q-submit');
+const qStatus=document.getElementById('q-status');
+
+async function handleQuestion(){
+  const text=qInput.value.trim();
+  if(!text||text.length<4) return;
+  qSubmit.disabled=true;
+  qStatus.textContent='reading the question...';
+  try {
+    const resp=await fetch('/api/score',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question:text})
+    });
+    if(!resp.ok) throw new Error('api error');
+    const {d}=await resp.json();
+    qStatus.textContent='placing in field...';
+    addVisitorNode(text,d);
+    qInput.value='';
+    setTimeout(()=>{ qStatus.textContent=''; },2000);
+  } catch(e){
+    qStatus.textContent='could not place — try again';
+    setTimeout(()=>{ qStatus.textContent=''; },3000);
+  }
+  qSubmit.disabled=false;
+}
+
+qSubmit.addEventListener('click',handleQuestion);
+qInput.addEventListener('keydown',e=>{ if(e.key==='Enter') handleQuestion(); });
+</script>
+</body>
+</html>
